@@ -5,6 +5,7 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, FlexibleContexts, TemplateHaskell #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module FTX where
 
@@ -52,28 +53,55 @@ import Preprocessor.Preprocessor
 
 type Price = Double
 
+type ExchangeRatio = Double
+
 type TRX = Double
 
-type Eth = Double
+-- Generic asset held inside ftx platform
+type AssetYInsideFTX = Double
 
+-- Generic asset as exchange target for trx outside ftx platform
+type AssetYOutsideFTX = Double
+
+data Coin = TRX | CoinY | AssetYInsideFTX | AssetYOutsideFTX
+ deriving (Num,Show,Ord, Eq, Enum)
 -- Define generic alternative asset locked in ftx
-type AltAssetFTX = Double
 
 -- Grid parameter for action space
 type GridParameter = TRX
 
 -- Define action space given grid parameter and max balance for coin
-actionSpace :: GridParameter -> (x,Price) -> [x]
+actionSpace :: Coin -> (Coin,Price) -> [Coin]
 actionSpace par (balance,_) = [0,par..balance]
 
+-- Define eCoinchange function
+exchangeFunction :: Coin -> Coin -> Coin
+exchangeFunction ratio x = x * ratio
 
 ----------------------------
 -- 1 Auxiliary functionality
 ----------------------------
+-- | Swap coin x against y given current prices
+swapCoinXforY = [opengame|
 
+    inputs    : amountCoinX,exchangeRatio;
+    feedback  : ;
+
+    :-----:
+    inputs    : amountCoinX, exchangeRatio ;
+    feedback  : ;
+    operation : forwardFunction $ uncurry $ exchangeFunction   ;
+    outputs   : amountCoinY;
+    returns   : ;
+
+    :-----:
+
+    outputs   : amountCoinY ;
+    returns   : ;
+|]
 
 --------------
--- 1 Decisions
+-- 2 Decisions
 --------------
 -- | Withdraw TRX
 withdrawTRX name gridParameterTRX = [opengame|
@@ -94,7 +122,8 @@ withdrawTRX name gridParameterTRX = [opengame|
     returns   : returnsFromWithdrawlTRX;
 |]
 
--- | Exchange alternative asset into TRX at a given price
+-- | Exchange alternative asset into TRX at a exchange given price
+-- NOTE: Decision inside ftx platform
 exchangeToTRX name balanceAlternativeCoin gridParameterAlternativeCoin = [opengame|
 
     inputs    : balanceAlternativeCoin, exchangePrice;
@@ -106,7 +135,7 @@ exchangeToTRX name balanceAlternativeCoin gridParameterAlternativeCoin = [openga
     operation : dependentDecision name $ actionSpace gridParameterAlternativeCoin ;
     outputs   : trx ;
     returns   : 0 ;
-    \\ Assume for now that this decision does not generate immediate value per se
+    // Assume for now that this decision does not generate immediate value per se
 
     :-----:
 
@@ -114,3 +143,23 @@ exchangeToTRX name balanceAlternativeCoin gridParameterAlternativeCoin = [openga
     returns   : ;
 |]
 
+-- | Exchange TRX asset into alternative asset at a given exchange price
+-- NOTE Decision outside ftx platform
+exchangeFromTRX name balanceTRX gridParameterTRX = [opengame|
+
+    inputs    : balanceTRX, exchangePrice;
+    feedback  : ;
+
+    :-----:
+    inputs    : balanceTRX, exchangePrice ;
+    feedback  : ;
+    operation : dependentDecision name $ actionSpace gridParameterTRX ;
+    outputs   : coinY ;
+    returns   : 0 ;
+    // Assume for now that this decision does not generate immediate value per se
+
+    :-----:
+
+    outputs   : coinY ;
+    returns   : ;
+|]
