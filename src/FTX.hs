@@ -63,19 +63,17 @@ type CoinXInside = Double
 -- Generic asset as exchange target for trx outside ftx platform
 type CoinYOutside = Double
 
-data Coin = TRX | CoinYOutside | CoinXInside 
- deriving (Num,Show,Ord, Eq, Enum)
 -- Define generic alternative asset locked in ftx
 
 -- Grid parameter for action space
 type GridParameter = TRX
 
 -- Define action space given grid parameter and max balance for coin
-actionSpace :: Coin -> (Coin,ExchangeRatio) -> [Coin]
+actionSpace :: (Num x,Enum x) => x -> (x,ExchangeRatio) -> [x]
 actionSpace par (balance,_) = [0,par..balance]
 
 -- Define eCoinchange function
-exchangeFunction :: Coin -> Coin -> Coin
+exchangeFunction :: Num x => x -> x -> x
 exchangeFunction ratio x = x * ratio
 
 -- Define helper subtract and addition functions
@@ -170,10 +168,9 @@ exchangeFromTRX name gridParameterTRX = [opengame|
 |]
 
 
---------------------
--- Composed Decision
---------------------
-
+----------------------
+-- 3 Composed Decision
+----------------------
 
 
 decision name gridParameterCoinX gridParameterTRX = [opengame|
@@ -196,11 +193,17 @@ decision name gridParameterCoinX gridParameterTRX = [opengame|
 
     inputs    : coinX, exchangePriceXtoTRX ;
     feedback  : ;
-    operation : exchangeToTRX name gridParameterCoinX ;
+    operation : swapCoinXforY ;
     outputs   : trx ;
     returns   : ;
 
-    inputs    : trx, exchangePriceTRXtoY ;
+    inputs    : balanceTRX, trx ;
+    feedback  : ;
+    operation : forwardFunction $ uncurry addToBalance ;
+    outputs   : balanceTRXIntermediate ;
+    returns   : ;
+
+    inputs    : balanceTRXIntermediate, exchangePriceTRXtoY ;
     feedback  : ;
     operation : withdrawTRX name gridParameterTRX ;
     outputs   : trxWithdrawn ;
@@ -212,19 +215,38 @@ decision name gridParameterCoinX gridParameterTRX = [opengame|
     outputs   : trxExchanged ;
     returns   : ;
 
+    inputs    : balanceTRXIntermediate, trxWithdrawn ;
+    feedback  : ;
+    operation : forwardFunction $ uncurry subtractFromBalance ;
+    outputs   : balanceTRXNew ;
+    returns   : ;
+
     inputs    : trxExchanged, exchangePriceTRXtoY ;
     feedback  : ;
     operation : exchangeToTRX name gridParameterTRX ;
     outputs   : coinY ;
     returns   : ;
 
-    
+    inputs    : balanceCoinY, coinY ;
+    feedback  : ;
+    operation : forwardFunction $ uncurry addToBalance ;
+    outputs   : balanceCoinYNew ;
+    returns   : ;
+
+
     :-----:
 
-    outputs   : ;
+    outputs   : (balanceCoinXNew,balanceCoinYNew,balanceTRXNew) ;
     returns   : ;
 |]
 
+------------------------------------
+-- 3 Create probbility distributions
+------------------------------------
 
+  
 
+----------------------
+-- 4 Payoffs
+----------------------
 
