@@ -58,12 +58,12 @@ type ExchangeRatio = Double
 type TRX = Double
 
 -- Generic asset held inside ftx platform
-type AssetYInsideFTX = Double
+type CoinXInside = Double
 
 -- Generic asset as exchange target for trx outside ftx platform
-type AssetYOutsideFTX = Double
+type CoinYOutside = Double
 
-data Coin = TRX | CoinY | AssetYInsideFTX | AssetYOutsideFTX
+data Coin = TRX | CoinYOutside | CoinXInside 
  deriving (Num,Show,Ord, Eq, Enum)
 -- Define generic alternative asset locked in ftx
 
@@ -71,13 +71,16 @@ data Coin = TRX | CoinY | AssetYInsideFTX | AssetYOutsideFTX
 type GridParameter = TRX
 
 -- Define action space given grid parameter and max balance for coin
-actionSpace :: Coin -> (Coin,Price) -> [Coin]
+actionSpace :: Coin -> (Coin,ExchangeRatio) -> [Coin]
 actionSpace par (balance,_) = [0,par..balance]
 
 -- Define eCoinchange function
 exchangeFunction :: Coin -> Coin -> Coin
 exchangeFunction ratio x = x * ratio
 
+-- Define helper subtract and addition functions
+addToBalance balance x = balance + x
+subtractFromBalance balance x = balance - x
 ----------------------------
 -- 1 Auxiliary functionality
 ----------------------------
@@ -103,49 +106,51 @@ swapCoinXforY = [opengame|
 --------------
 -- 2 Decisions
 --------------
--- | Withdraw TRX
-withdrawTRX name gridParameterTRX = [opengame|
-
-    inputs    : balanceTRX,outsidePrice;
-    feedback  : ;
-
-    :-----:
-    inputs    : balanceTRX,outsidePrice ;
-    feedback  : ;
-    operation : dependentDecision name $ actionSpace gridParameterTRX ;
-    outputs   : withdrawTRX ;
-    returns   : returnsFromWithdrawlTRX ;
-
-    :-----:
-
-    outputs   : withdrawTRX ;
-    returns   : returnsFromWithdrawlTRX;
-|]
-
 -- | Exchange alternative asset into TRX at a exchange given price
 -- NOTE: Decision inside ftx platform
-exchangeToTRX name balanceAlternativeCoin gridParameterAlternativeCoin = [opengame|
+exchangeToTRX name gridParameterCoinX = [opengame|
 
-    inputs    : balanceAlternativeCoin, exchangePrice;
+    inputs    : balanceCoinX, exchangePrice;
     feedback  : ;
 
     :-----:
-    inputs    : balanceAlternativeCoin, exchangePrice ;
+    inputs    : balanceCoinX, exchangePrice ;
     feedback  : ;
-    operation : dependentDecision name $ actionSpace gridParameterAlternativeCoin ;
-    outputs   : trx ;
+    operation : dependentDecision name $ actionSpace gridParameterCoinX ;
+    outputs   : coinX ;
     returns   : 0 ;
     // Assume for now that this decision does not generate immediate value per se
 
     :-----:
 
-    outputs   : trx ;
+    outputs   : coinX ;
+    returns   : ;
+    |]
+
+
+-- | Withdraw TRX
+withdrawTRX name gridParameterTRX = [opengame|
+
+    inputs    : balanceTRX,exchangePrice;
+    feedback  : ;
+
+    :-----:
+    inputs    : balanceTRX,exchangePrice ;
+    feedback  : ;
+    operation : dependentDecision name $ actionSpace gridParameterTRX ;
+    outputs   : withdrawTRX ;
+    returns   :  0;
+    // We settle values later
+
+    :-----:
+
+    outputs   : withdrawTRX ;
     returns   : ;
 |]
 
 -- | Exchange TRX asset into alternative asset at a given exchange price
 -- NOTE Decision outside ftx platform
-exchangeFromTRX name balanceTRX gridParameterTRX = [opengame|
+exchangeFromTRX name gridParameterTRX = [opengame|
 
     inputs    : balanceTRX, exchangePrice;
     feedback  : ;
@@ -163,3 +168,63 @@ exchangeFromTRX name balanceTRX gridParameterTRX = [opengame|
     outputs   : coinY ;
     returns   : ;
 |]
+
+
+--------------------
+-- Composed Decision
+--------------------
+
+
+
+decision name gridParameterCoinX gridParameterTRX = [opengame|
+
+    inputs    : balanceCoinX, balanceCoinY, balanceTRX, exchangePriceXtoTRX, exchangePriceTRXtoY;
+    feedback  : ;
+
+    :-----:
+    inputs    : balanceCoinX, exchangePriceXtoTRX ;
+    feedback  : ;
+    operation : exchangeToTRX name gridParameterCoinX ;
+    outputs   : coinX ;
+    returns   : ;
+
+    inputs    : balanceCoinX, coinX ;
+    feedback  : ;
+    operation : forwardFunction $ uncurry subtractFromBalance ;
+    outputs   : balanceCoinXNew ;
+    returns   : ;
+
+    inputs    : coinX, exchangePriceXtoTRX ;
+    feedback  : ;
+    operation : exchangeToTRX name gridParameterCoinX ;
+    outputs   : trx ;
+    returns   : ;
+
+    inputs    : trx, exchangePriceTRXtoY ;
+    feedback  : ;
+    operation : withdrawTRX name gridParameterTRX ;
+    outputs   : trxWithdrawn ;
+    returns   : ;
+
+    inputs    : trxWithdrawn, exchangePriceTRXtoY ;
+    feedback  : ;
+    operation : exchangeFromTRX name gridParameterTRX ;
+    outputs   : trxExchanged ;
+    returns   : ;
+
+    inputs    : trxExchanged, exchangePriceTRXtoY ;
+    feedback  : ;
+    operation : exchangeToTRX name gridParameterTRX ;
+    outputs   : coinY ;
+    returns   : ;
+
+    
+    :-----:
+
+    outputs   : ;
+    returns   : ;
+|]
+
+
+
+
