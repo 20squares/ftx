@@ -442,3 +442,5 @@ initialContextLinear balanceCoinX balanceCoinY balanceTRXInside balanceTRXOutsid
 scenario strat = analysis 10 10 0.1 2 1 1 1  1 strat (initialContextLinear 10 0 0 0 1 0.5 )
 
 checkStrategiesMax = scenario overallMaxStrategy
+
+checkStrategiesZero = scenario overallZeroStrategy
