@@ -413,3 +413,22 @@ analysis
           (ExchangeRatio, Double, Double, Double, Payoff, Payoff) () () ()
      -> IO ()
 analysis pX valueX pTRX valueTRX gridParameterCoinX gridParameterTRX exchangePriceXtoTRX  exchangePriceTRXtoY strat context = generateIsEq $ evaluate (completeGame "agent" pX valueX pTRX valueTRX gridParameterCoinX gridParameterTRX exchangePriceXtoTRX  exchangePriceTRXtoY) strat context
+
+-------------
+-- Strategies
+-------------
+
+-- Always exchange, withdraw etc. max
+maxStrategy :: Kleisli Stochastic (Double, ExchangeRatio) Double
+maxStrategy = Kleisli (\(balance,_) -> playDeterministically balance)
+
+-- For all decisions 
+overallMaxStrategy = maxStrategy ::- maxStrategy ::- maxStrategy ::- maxStrategy ::- Nil
+
+-- Always exchange, withdraw etc. nothing
+zeroStrategy :: Kleisli Stochastic (Double, ExchangeRatio) Double
+zeroStrategy = pureAction 0
+
+ -- For all decisions  
+overallZeroStrategy = zeroStrategy ::- zeroStrategy ::- zeroStrategy ::- zeroStrategy ::- Nil
+
