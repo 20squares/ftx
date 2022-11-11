@@ -405,7 +405,7 @@ analysis
      -> ExchangeRatio
      -> ExchangeRatio
      -> List
-          '[Kleisli Stochastic (ExchangeRatio, ExchangeRatio) ExchangeRatio,
+          '[Kleisli Stochastic (Double, ExchangeRatio) Double,
             Kleisli Stochastic (Double, ExchangeRatio) Double,
             Kleisli Stochastic (Double, ExchangeRatio) Double,
             Kleisli Stochastic (Double, ExchangeRatio) Double]
@@ -432,3 +432,13 @@ zeroStrategy = pureAction 0
  -- For all decisions  
 overallZeroStrategy = zeroStrategy ::- zeroStrategy ::- zeroStrategy ::- zeroStrategy ::- Nil
 
+
+------------------
+-- Initial Context
+------------------
+
+initialContextLinear balanceCoinX balanceCoinY balanceTRXInside balanceTRXOutside pTRXInsideFTX pTRXOutside = StochasticStatefulContext (pure ((),(balanceCoinX, balanceCoinY, balanceTRXInside,balanceTRXOutside,pTRXInsideFTX,pTRXOutside))) (\_ _ -> pure ())
+
+scenario strat = analysis 10 10 0.1 2 1 1 1  1 strat (initialContextLinear 10 0 0 0 1 0.5 )
+
+checkStrategiesMax = scenario overallMaxStrategy
