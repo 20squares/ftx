@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Lib
+import FTX
 
 main :: IO ()
-main = someFunc
+main = undefined
