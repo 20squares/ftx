@@ -391,3 +391,21 @@ completeGame name  pX valueX pTRX valueTRX gridParameterCoinX gridParameterTRX e
     returns   : ;
 |]
 
+analysis
+  :: Double
+     -> Payoff
+     -> Double
+     -> Payoff
+     -> ExchangeRatio
+     -> Double
+     -> ExchangeRatio
+     -> ExchangeRatio
+     -> List
+          '[Kleisli Stochastic (ExchangeRatio, ExchangeRatio) ExchangeRatio,
+            Kleisli Stochastic (Double, ExchangeRatio) Double,
+            Kleisli Stochastic (Double, ExchangeRatio) Double,
+            Kleisli Stochastic (Double, ExchangeRatio) Double]
+     -> StochasticStatefulContext
+          (ExchangeRatio, Double, Double, Double, Payoff, Payoff) () () ()
+     -> IO ()
+analysis pX valueX pTRX valueTRX gridParameterCoinX gridParameterTRX exchangePriceXtoTRX  exchangePriceTRXtoY strat context = generateIsEq $ evaluate (completeGame "agent" pX valueX pTRX valueTRX gridParameterCoinX gridParameterTRX exchangePriceXtoTRX  exchangePriceTRXtoY) strat context
