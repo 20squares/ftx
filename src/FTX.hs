@@ -391,6 +391,10 @@ completeGame name  pX valueX pTRX valueTRX gridParameterCoinX gridParameterTRX e
     returns   : ;
 |]
 
+-----------
+-- Analysis
+-----------
+
 analysis
   :: Double
      -> Payoff
