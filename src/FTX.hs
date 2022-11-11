@@ -192,7 +192,7 @@ exchangeFromTRX name gridParameterTRX = [opengame|
 ----------------------
 
 
-decision name gridParameterCoinX gridParameterTRX = [opengame|
+decisions name gridParameterCoinX gridParameterTRX = [opengame|
 
     inputs    : balanceCoinX, balanceCoinY, balanceTRXInside,balanceTRXOutside, exchangePriceXtoTRX, exchangePriceTRXtoY;
     feedback  : ;
@@ -314,15 +314,15 @@ priceDistributions pX valueX pTRX valueTRX = [opengame|
 
     :-----:
 
-    outputs   : (priceX,priceTRX);
+    outputs   : priceX,priceTRX;
     returns   : ;
 |]
 
 
 
-----------------------
+------------
 -- 4 Payoffs
-----------------------
+------------
 
 payoffs name  = [opengame|
 
@@ -351,7 +351,43 @@ payoffs name  = [opengame|
 
     :-----:
 
-    outputs   :  ;
+    outputs   : ;
+    returns   : ;
+|]
+
+---------------------------
+-- 5 Assemble complete game
+---------------------------
+
+completeGame name  pX valueX pTRX valueTRX gridParameterCoinX gridParameterTRX exchangePriceXtoTRX  exchangePriceTRXtoY = [opengame|
+
+    inputs    : balanceCoinX, balanceCoinY, balanceTRXInside,balanceTRXOutside,pTRXInsideFTX,pTRXOutside ;
+    feedback  : ;
+
+    :-----:
+
+    inputs    : ;
+    feedback  : ;
+    operation : priceDistributions pX valueX pTRX valueTRX ;
+    outputs   : priceX,priceTRX ;
+    returns   : ;
+
+    inputs    : balanceCoinX, balanceCoinY, balanceTRXInside,balanceTRXOutside, exchangePriceXtoTRX, exchangePriceTRXtoY;
+    feedback  : ;
+    operation : decisions name gridParameterCoinX gridParameterTRX;
+    outputs   : balanceCoinXNew,balanceCoinYNew,balanceTRXInsideNew,balanceTRXOutsideNew ;
+    returns   : ;
+
+    inputs    : balanceCoinX, balanceCoinY, balanceTRXInside,balanceTRXOutside,balanceCoinXNew,balanceCoinYNew,balanceTRXInsideNew,balanceTRXOutsideNew,priceX,priceTRX,pTRXInsideFTX,pTRXOutside;
+    feedback  : ;
+    operation : payoffs name ;
+    outputs   : ;
+    returns   : ;
+
+
+    :-----:
+
+    outputs   : ;
     returns   : ;
 |]
 
