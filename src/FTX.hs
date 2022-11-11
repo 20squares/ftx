@@ -6,6 +6,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module FTX where
 
@@ -68,6 +69,12 @@ type CoinYOutside = Double
 -- Grid parameter for action space
 type GridParameter = TRX
 
+-- Haskell type issue
+deriving instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show k, Show l, Show m, Show n, Show o, Show p) => Show (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p)
+deriving instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show k, Show l, Show m, Show n, Show o, Show p, Show q) => Show (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q)
+
+
+
 -- Define action space given grid parameter and max balance for coin
 actionSpace :: (Num x,Enum x) => x -> (x,ExchangeRatio) -> [x]
 actionSpace par (balance,_) = [0,par..balance]
@@ -77,8 +84,21 @@ exchangeFunction :: Num x => x -> x -> x
 exchangeFunction ratio x = x * ratio
 
 -- Define helper subtract and addition functions
+addToBalance,subtractFromBalance :: Double -> Double -> Double
 addToBalance balance x = balance + x
 subtractFromBalance balance x = balance - x
+
+-- Compute profits 
+computePayoffs (diffX,diffY,diffTRXInside,diffTRXOutside,pX,pY,pTRXInsideFTX,pTRXOutside) =
+  (diffX* pX)  +  (diffY*pY) +  (diffTRXInside * pTRXInsideFTX) +  (diffTRXOutside * pTRXOutside)
+
+-- Compute the differences of accounts
+computeDiffBalances
+  :: (Num a, Num b, Num c, Num d) =>
+     (a, b, c, d, a, b, c, d) -> (a, b, c, d)
+computeDiffBalances (balanceCoinX, balanceCoinY, balanceTRXInside,balanceTRXOutside,balanceCoinXNew,balanceCoinYNew,balanceTRXInsideNew,balanceTRXOutsideNew) =
+  (balanceCoinXNew - balanceCoinX, balanceCoinYNew - balanceCoinY, balanceTRXInsideNew - balanceTRXInside, balanceTRXOutsideNew - balanceTRXOutside)
+
 ----------------------------
 -- 1 Auxiliary functionality
 ----------------------------
@@ -167,7 +187,6 @@ exchangeFromTRX name gridParameterTRX = [opengame|
     returns   : ;
 |]
 
-
 ----------------------
 -- 3 Composed Decision
 ----------------------
@@ -175,7 +194,7 @@ exchangeFromTRX name gridParameterTRX = [opengame|
 
 decision name gridParameterCoinX gridParameterTRX = [opengame|
 
-    inputs    : balanceCoinX, balanceCoinY, balanceTRX, exchangePriceXtoTRX, exchangePriceTRXtoY;
+    inputs    : balanceCoinX, balanceCoinY, balanceTRXInside,balanceTRXOutside, exchangePriceXtoTRX, exchangePriceTRXtoY;
     feedback  : ;
 
     :-----:
@@ -184,69 +203,155 @@ decision name gridParameterCoinX gridParameterTRX = [opengame|
     operation : exchangeToTRX name gridParameterCoinX ;
     outputs   : coinX ;
     returns   : ;
-
-    inputs    : balanceCoinX, coinX ;
-    feedback  : ;
-    operation : forwardFunction $ uncurry subtractFromBalance ;
-    outputs   : balanceCoinXNew ;
-    returns   : ;
+    // exchange x for trx inside
 
     inputs    : coinX, exchangePriceXtoTRX ;
     feedback  : ;
     operation : swapCoinXforY ;
     outputs   : trx ;
     returns   : ;
+    // compute exchange
 
-    inputs    : balanceTRX, trx ;
+    inputs    : balanceCoinX, coinX ;
+    feedback  : ;
+    operation : forwardFunction $ uncurry subtractFromBalance ;
+    outputs   : balanceCoinXNew ;
+    returns   : ;
+    // update balance of x coin inside
+
+    inputs    : balanceTRXInside, trx ;
     feedback  : ;
     operation : forwardFunction $ uncurry addToBalance ;
     outputs   : balanceTRXIntermediate ;
     returns   : ;
+    // update balance of trx inside
 
     inputs    : balanceTRXIntermediate, exchangePriceTRXtoY ;
     feedback  : ;
     operation : withdrawTRX name gridParameterTRX ;
     outputs   : trxWithdrawn ;
     returns   : ;
-
-    inputs    : trxWithdrawn, exchangePriceTRXtoY ;
-    feedback  : ;
-    operation : exchangeFromTRX name gridParameterTRX ;
-    outputs   : trxExchanged ;
-    returns   : ;
+    // withdraw trx from ftx
 
     inputs    : balanceTRXIntermediate, trxWithdrawn ;
     feedback  : ;
     operation : forwardFunction $ uncurry subtractFromBalance ;
-    outputs   : balanceTRXNew ;
+    outputs   : balanceTRXNewInside ;
     returns   : ;
+    // update balance of trx inside ftx
+
+    inputs    : balanceTRXOutside, trxWithdrawn ;
+    feedback  : ;
+    operation : forwardFunction $ uncurry addToBalance ;
+    outputs   : balanceTRXOutsideIntermediate ;
+    returns   : ;
+    // update balance of trx outside ftx
+
+    inputs    : balanceTRXOutsideIntermediate, exchangePriceTRXtoY ;
+    feedback  : ;
+    operation : exchangeFromTRX name gridParameterTRX ;
+    outputs   : trxExchanged ;
+    returns   : ;
+    // exchange trx outside for y
+
+    inputs    : balanceTRXOutsideIntermediate, trxExchanged ;
+    feedback  : ;
+    operation : forwardFunction $ uncurry subtractFromBalance ;
+    outputs   : balanceTRXNewOutside ;
+    returns   : ;
+    // update balance of trx outside
 
     inputs    : trxExchanged, exchangePriceTRXtoY ;
     feedback  : ;
     operation : exchangeToTRX name gridParameterTRX ;
     outputs   : coinY ;
     returns   : ;
+    // compute actual exchange of y
 
     inputs    : balanceCoinY, coinY ;
     feedback  : ;
     operation : forwardFunction $ uncurry addToBalance ;
     outputs   : balanceCoinYNew ;
     returns   : ;
-
+    // update balance of y outside
 
     :-----:
 
-    outputs   : (balanceCoinXNew,balanceCoinYNew,balanceTRXNew) ;
+    outputs   : balanceCoinXNew,balanceCoinYNew,balanceTRXNewInside,balanceTRXNewOutside ;
     returns   : ;
 |]
 
 ------------------------------------
 -- 3 Create probbility distributions
 ------------------------------------
+-- Create probability distributions for the value of coin x and trx _inside_ ftx
+-- We assume that the other parameters are taken as exogenous
 
-  
+-- with prob p value of coin x inside ftx 0; with prob (1-p) value
+distributionPriceX p value = distFromList [(0,p),(value,(1-p))]
+
+-- with prob p value of trx inside ftx 0; with prob (1-p) value
+distributionPriceTRX p value = distFromList [(0,p),(value,(1-p))]
+
+
+priceDistributions pX valueX pTRX valueTRX = [opengame|
+
+    inputs    : ;
+    feedback  : ;
+
+    :-----:
+    inputs    : ;
+    feedback  : ;
+    operation : nature $ distributionPriceX pX valueX;
+    outputs   : priceX;
+    returns   : ;
+
+    inputs    : ;
+    feedback  : ;
+    operation : nature $ distributionPriceTRX pTRX valueTRX;
+    outputs   : priceTRX;
+    returns   : ;
+
+    :-----:
+
+    outputs   : (priceX,priceTRX);
+    returns   : ;
+|]
+
+
 
 ----------------------
 -- 4 Payoffs
 ----------------------
+
+payoffs name  = [opengame|
+
+    inputs    : balanceCoinX, balanceCoinY, balanceTRXInside,balanceTRXOutside,balanceCoinXNew,balanceCoinYNew,balanceTRXInsideNew,balanceTRXOutsideNew,pX,pY,pTRXInsideFTX,pTRXOutside ;
+    feedback  : ;
+
+    :-----:
+
+    inputs    : balanceCoinX, balanceCoinY, balanceTRXInside,balanceTRXOutside, balanceCoinXNew,balanceCoinYNew,balanceTRXInsideNew,balanceTRXOutsideNew ;
+    feedback  : ;
+    operation : forwardFunction $ computeDiffBalances ;
+    outputs   : diffX,diffY,diffTRXInside,diffTRXOutside ;
+    returns   : ;
+
+    inputs    : diffX,diffY,diffTRXInside,diffTRXOutside,pX,pY,pTRXInsideFTX,pTRXOutside;
+    feedback  : ;
+    operation : forwardFunction $ computePayoffs ;
+    outputs   : profit ;
+    returns   : ;
+
+    inputs    : profit ;
+    feedback  : ;
+    operation : addPayoffs name ;
+    outputs   : ;
+    returns   : ;
+
+    :-----:
+
+    outputs   :  ;
+    returns   : ;
+|]
 
